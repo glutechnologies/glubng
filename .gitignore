@@ -16,3 +16,6 @@
 
 # Output executable
 bin/
+
+# Custom configuration
+glubng.toml

@@ -1,0 +1,5 @@
+[misc]
+SrcKeaSocket = "hook.sock"
+
+[vpp]
+SrcVppSocket = "vpp.sock"

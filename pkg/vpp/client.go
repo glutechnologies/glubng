@@ -7,23 +7,23 @@ import (
 	"go.fd.io/govpp/core"
 )
 
-type Client struct {
-	sockAddr string
-	conn     *core.Connection
-	enabled  bool
+// VPP related configuration
+type VPPConfig struct {
+	SrcVPPSocket        string
+	UplinkInterfaceName string
+	UplinkInterfaceIPv4 string
 }
 
-func (c *Client) Init(sockAddr string, enabled bool) {
+type Client struct {
+	config VPPConfig
+	conn   *core.Connection
+}
+
+func (c *Client) Init(config *VPPConfig) {
 	// Initialize all struct members
-	c.sockAddr = sockAddr
-	c.enabled = enabled
+	c.config = *config
 
-	// If vpp is not enabled return
-	if !c.enabled {
-		return
-	}
-
-	conn, connEv, err := govpp.AsyncConnect(sockAddr, core.DefaultMaxReconnectAttempts, core.DefaultReconnectInterval)
+	conn, connEv, err := govpp.AsyncConnect(c.config.SrcVPPSocket, core.DefaultMaxReconnectAttempts, core.DefaultReconnectInterval)
 	if err != nil {
 		log.Fatalln("ERROR:", err)
 	}
@@ -38,11 +38,6 @@ func (c *Client) Init(sockAddr string, enabled bool) {
 }
 
 func (c *Client) Close() {
-	// If vpp is not enabled return
-	if !c.enabled {
-		return
-	}
-
 	c.conn.Disconnect()
 }
 

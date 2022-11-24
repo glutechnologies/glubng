@@ -15,14 +15,19 @@ import (
 	"github.com/glutechnologies/glubng/pkg/vpp"
 )
 
-type Config struct {
+// Configuration aggregation
+type CoreConfig struct {
+	Misc MiscConfig    `toml:"misc"`
+	Vpp  vpp.VPPConfig `toml:"vpp"`
+}
+
+type MiscConfig struct {
 	SrcKeaSocket string
-	SrcVppSocket string
 }
 
 type Core struct {
 	control  chan os.Signal
-	config   Config
+	config   CoreConfig
 	sessions Sessions
 	vpp      vpp.Client
 	kea      kea.KeaSocket
@@ -52,10 +57,10 @@ func (c *Core) Init() {
 	c.LoadConfig()
 
 	// Init kea listener
-	c.kea.Init(c.config.SrcKeaSocket)
+	c.kea.Init(c.config.Misc.SrcKeaSocket)
 
 	// Init VPP
-	c.vpp.Init(c.config.SrcVppSocket, true)
+	c.vpp.Init(&c.config.Vpp)
 
 	// Init Sessions
 	c.sessions.Init(&c.vpp)

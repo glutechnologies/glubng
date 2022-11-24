@@ -3,14 +3,16 @@ package core
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
+	"sync"
 	"syscall"
 
 	"github.com/BurntSushi/toml"
 	"github.com/glutechnologies/glubng/pkg/kea"
+	"github.com/glutechnologies/glubng/pkg/vpp"
 )
 
 type Config struct {
@@ -18,48 +20,89 @@ type Config struct {
 	SrcVppSocket string
 }
 
-func LoadConfig(config *Config) {
+type Core struct {
+	control  chan os.Signal
+	config   Config
+	sessions Sessions
+	vpp      vpp.Client
+	kea      kea.KeaSocket
+	wg       sync.WaitGroup
+}
+
+func (c *Core) LoadConfig() {
 	// Load configuration
 	configSrc := flag.String("config", "/etc/glubng.toml", "Config source path")
 	flag.Parse()
 
-	body, err := ioutil.ReadFile(*configSrc)
+	body, err := os.ReadFile(*configSrc)
 
 	if err != nil {
 		log.Fatalf("Error loading configuration file")
 	}
 
-	_, err = toml.Decode(string(body), &config)
+	_, err = toml.Decode(string(body), &c.config)
 
 	if err != nil {
 		log.Fatalf("Error decoding configuration file")
 	}
 }
 
-func Init() {
+func (c *Core) Init() {
 	// Load initial configuration
-	var config Config
-	LoadConfig(&config)
-
-	k := &kea.KeaSocket{}
+	c.LoadConfig()
 
 	// Init kea listener
-	k.Init(config.SrcKeaSocket)
+	c.kea.Init(c.config.SrcKeaSocket)
+
+	// Init VPP
+	c.vpp.Init(c.config.SrcVppSocket, true)
+
+	// Init Sessions
+	c.sessions.Init(&c.vpp)
 
 	// Create a channel to process signals
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	c.control = make(chan os.Signal, 1)
+	signal.Notify(c.control, syscall.SIGINT, syscall.SIGTERM)
 
-	// Create a channel to exit when everything has stopped gracefully
-	done := make(chan bool, 1)
+	// Process messages received from Kea DHCP Server
+	c.wg.Add(1)
+	go c.ProcessKeaMessages()
 
 	fmt.Println("Running GluBNGd...")
 
+	// Add 1 to wg counter
+	c.wg.Add(1)
 	go func() {
-		<-c
-		k.Close()
-		done <- true
+		<-c.control
+		c.kea.Close()
+		c.wg.Done()
 	}()
-	<-done
+
+	c.wg.Wait()
 	fmt.Println("Exiting GluBNGd...")
+}
+
+func (c *Core) ProcessKeaMessages() {
+	for {
+		select {
+		case <-c.control:
+			// Receive CONTROL-C exit goroutine
+			goto endLoop
+		case msg := <-c.kea.Message:
+			switch msg.Callout {
+			case kea.CALLOUT_LEASE4_SELECT:
+				// New Lease selected
+				iface, err := strconv.ParseInt(msg.Query.Option82CID, 16, 0)
+				if err != nil {
+					// Error parsing circuit-id
+					log.Printf("Error in ProcessKeaMessages, %s", err.Error())
+					break
+				}
+				ses := &Session{Iface: int(iface), IPv4: msg.Lease.Address}
+				c.sessions.AddSession(ses)
+			}
+		}
+	}
+endLoop:
+	c.wg.Done()
 }

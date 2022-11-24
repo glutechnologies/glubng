@@ -10,5 +10,5 @@ ssh root@<vpp-management-ip> -L<local-sock>:/run/vpp/vpp.sock
 
 In this projecte we also have another socket for Kea triggering. We also should forward this socket:
 ```
-ssh root@<vpp-management-ip> -L<local-sock>:/hook.sock
+ssh root@<vpp-management-ip> -R<local-sock>:/hook.sock
 ```

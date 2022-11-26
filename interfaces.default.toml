@@ -1,0 +1,13 @@
+[cpe1]
+VPPSrcIface = 1
+IsSubIf = false
+HasQinQ = false
+OuterVLAN = 0
+InnerVLAN = 0
+
+[cpe2]
+VPPSrcIface = 2
+IsSubIf = false
+HasQinQ = false
+OuterVLAN = 0
+InnerVLAN = 0

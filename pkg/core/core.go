@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -26,20 +27,18 @@ type MiscConfig struct {
 }
 
 type Core struct {
-	control  chan os.Signal
-	config   CoreConfig
-	sessions Sessions
-	vpp      vpp.Client
-	kea      kea.KeaSocket
-	wg       sync.WaitGroup
+	ifacesFile string
+	configFile string
+	control    chan os.Signal
+	config     CoreConfig
+	sessions   Sessions
+	vpp        vpp.Client
+	kea        kea.KeaSocket
+	wg         sync.WaitGroup
 }
 
 func (c *Core) LoadConfig() {
-	// Load configuration
-	configSrc := flag.String("config", "/etc/glubng.toml", "Config source path")
-	flag.Parse()
-
-	body, err := os.ReadFile(*configSrc)
+	body, err := os.ReadFile(c.configFile)
 
 	if err != nil {
 		log.Fatalf("Error loading configuration file")
@@ -52,7 +51,31 @@ func (c *Core) LoadConfig() {
 	}
 }
 
+func (c *Core) WriteConfig() {
+	buf := new(bytes.Buffer)
+	err := toml.NewEncoder(buf).Encode(c.config)
+
+	if err != nil {
+		log.Fatalf("Error encoding configuration in TOML")
+	}
+
+	err = os.WriteFile(c.configFile, buf.Bytes(), 0666)
+
+	if err != nil {
+		log.Fatalf("Error writing configuration file")
+	}
+}
+
 func (c *Core) Init() {
+	// Define flags
+	configFile := flag.String("config", "/etc/glubng.toml", "Config source path")
+	ifacesFile := flag.String("interfaces", "/etc/interfaces.toml", "Config interfaces source path")
+	flag.Parse()
+
+	// Store files
+	c.configFile = *configFile
+	c.ifacesFile = *ifacesFile
+
 	// Load initial configuration
 	c.LoadConfig()
 
@@ -60,7 +83,7 @@ func (c *Core) Init() {
 	c.kea.Init(c.config.Misc.SrcKeaSocket)
 
 	// Init VPP
-	c.vpp.Init(&c.config.Vpp)
+	c.vpp.Init(&c.config.Vpp, c.ifacesFile)
 
 	// Init Sessions
 	c.sessions.Init(&c.vpp)
@@ -105,6 +128,10 @@ func (c *Core) ProcessKeaMessages() {
 				}
 				ses := &Session{Iface: int(iface), IPv4: msg.Lease.Address}
 				c.sessions.AddSession(ses)
+			case kea.CALLOUT_LEASE4_RELEASE:
+			case kea.CALLOUT_LEASE4_EXPIRE:
+				// Remove Session when a lease expires
+				c.sessions.RemoveSession(msg.Lease.Address)
 			}
 		}
 	}

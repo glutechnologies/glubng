@@ -19,3 +19,5 @@ bin/
 
 # Custom configuration
 glubng.toml
+
+interfaces.toml

@@ -7,34 +7,32 @@ import (
 	"go.fd.io/govpp/core"
 )
 
-// VPP related configuration
-type VPPConfig struct {
-	SrcVPPSocket        string
-	UplinkInterfaceName string
-	UplinkInterfaceIPv4 string
-}
-
 type Client struct {
-	config VPPConfig
-	conn   *core.Connection
+	config     VPPConfig
+	ifaces     map[string]Iface
+	ifacesFile string
+	conn       *core.Connection
 }
 
-func (c *Client) Init(config *VPPConfig) {
+func (c *Client) Init(config *VPPConfig, ifacesFile string) {
 	// Initialize all struct members
 	c.config = *config
+	c.ifacesFile = ifacesFile
 
 	conn, connEv, err := govpp.AsyncConnect(c.config.SrcVPPSocket, core.DefaultMaxReconnectAttempts, core.DefaultReconnectInterval)
 	if err != nil {
-		log.Fatalln("ERROR:", err)
+		log.Fatalln("Async connect to VPP", err)
 	}
 
 	c.conn = conn
 	// wait for Connected event
 	e := <-connEv
 	if e.State != core.Connected {
-		log.Fatalln("ERROR: connecting to VPP failed:", e.Error)
+		log.Fatalln("Connecting to VPP failed:", e.Error)
 	}
 
+	// Load CPE Interface configurations
+	c.LoadIfacesConfig()
 }
 
 func (c *Client) Close() {

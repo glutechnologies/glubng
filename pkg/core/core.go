@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -102,6 +103,7 @@ func (c *Core) Init() {
 	go func() {
 		<-c.control
 		c.kea.Close()
+		c.vpp.Close()
 		c.wg.Done()
 	}()
 
@@ -125,7 +127,14 @@ func (c *Core) ProcessKeaMessages() {
 					log.Printf("Error in ProcessKeaMessages, %s", err.Error())
 					break
 				}
-				ses := &Session{Iface: int(iface), IPv4: msg.Lease.Address}
+				// ParseIP is an slice[16], positions 12,13,14,15 are used for IPv4
+				goip := net.ParseIP(msg.Lease.Address)
+
+				if goip == nil {
+					log.Println("Error adding session in parse ip")
+					break
+				}
+				ses := &Session{Iface: int(iface), IPv4: goip}
 				c.sessions.AddSession(ses)
 			case kea.CALLOUT_LEASE4_RELEASE:
 			case kea.CALLOUT_LEASE4_EXPIRE:

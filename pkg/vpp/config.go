@@ -14,6 +14,7 @@ type VPPConfig struct {
 	UplinkIfaceName   string
 	UplinkIfaceIPv4   string
 	GatewayIfaceAddrs []string
+	IPv4Pool          []string
 	EnableProxyARP    bool
 }
 
@@ -24,6 +25,7 @@ type Iface struct {
 	HasQinQ     bool
 	OuterVLAN   int
 	InnerVLAN   int
+	MTU         uint32
 }
 
 func (c *Client) LoadIfacesConfig() {

@@ -3,8 +3,11 @@ package vpp
 import (
 	"log"
 	"net"
+	"net/netip"
 
 	"go.fd.io/govpp"
+	"go.fd.io/govpp/api"
+	"go.fd.io/govpp/binapi/arp"
 	"go.fd.io/govpp/binapi/fib_types"
 	"go.fd.io/govpp/binapi/ip"
 	"go.fd.io/govpp/binapi/ip_types"
@@ -16,6 +19,8 @@ type Client struct {
 	ifaces     map[string]Iface
 	ifacesFile string
 	conn       *core.Connection
+	ch         api.Channel
+	gwLoopSwIf int
 }
 
 func (c *Client) Init(config *VPPConfig, ifacesFile string) {
@@ -35,59 +40,147 @@ func (c *Client) Init(config *VPPConfig, ifacesFile string) {
 		log.Fatalln("Connecting to VPP failed:", e.Error)
 	}
 
+	c.ch, err = c.conn.NewAPIChannel()
+	if err != nil {
+		log.Fatalf("Error creating channel failed, %s", err.Error())
+	}
+
 	// Load CPE Interface configurations
 	c.LoadIfacesConfig()
+
+	// Configure VPP
+	c.configProxyArp()
+	c.configIPv4GwLoopback()
+	c.configCPEInterfaces()
 }
 
 func (c *Client) Close() {
+	c.ch.Close()
 	c.conn.Disconnect()
 }
 
-func (c *Client) AddSession(ipv4 string, iface uint32) {
-	log.Println("Add session to VPP")
-
-	goip := net.ParseIP(ipv4)
-
-	if goip == nil {
-		log.Println("Error adding session in parse ip")
-		return
-	}
+func (c *Client) AddSession(ipv4 net.IP, iface uint32) {
+	log.Printf("Add session to VPP, IPv4: %s, SwIf: %d", ipv4.String(), iface)
 
 	vppip := ip_types.Address{
 		Af: ip_types.ADDRESS_IP4,
 		Un: ip_types.AddressUnionIP4(ip_types.IP4Address{
-			goip[12], goip[13], goip[14], goip[15],
+			ipv4[12], ipv4[13], ipv4[14], ipv4[15],
 		}),
 	}
 
-	c.addRouteToVPP(&vppip, iface)
+	c.addDelRouteToVPP(&vppip, iface, true)
 }
 
-func (c *Client) RemoveSession() {
-	log.Println("Remove session from VPP")
-}
+func (c *Client) RemoveSession(ipv4 net.IP, iface uint32) {
+	log.Printf("Remove session from VPP, IPv4: %s, SwIf: %d", ipv4.String(), iface)
 
-func (c *Client) addRouteToVPP(ipv4 *ip_types.Address, iface uint32) error {
-	ch, err := c.conn.NewAPIChannel()
-	if err != nil {
-		log.Println("ERROR: creating channel failed:", err)
-		return err
+	vppip := ip_types.Address{
+		Af: ip_types.ADDRESS_IP4,
+		Un: ip_types.AddressUnionIP4(ip_types.IP4Address{
+			ipv4[12], ipv4[13], ipv4[14], ipv4[15],
+		}),
 	}
-	defer ch.Close()
 
+	c.addDelRouteToVPP(&vppip, iface, false)
+}
+
+func (c *Client) addDelRouteToVPP(ipv4 *ip_types.Address, iface uint32, isAdd bool) error {
 	path := fib_types.FibPath{SwIfIndex: iface}
 
-	req := &ip.IPRouteAddDel{IsAdd: true,
+	req := &ip.IPRouteAddDel{IsAdd: isAdd,
 		Route: ip.IPRoute{TableID: 0,
 			Prefix: ip_types.Prefix{Address: *ipv4, Len: 32},
 			Paths:  []fib_types.FibPath{path}}}
 
 	reply := &ip.IPRouteAddDelReply{}
 
-	if err = ch.SendRequest(req).ReceiveReply(reply); err != nil {
+	if err := c.ch.SendRequest(req).ReceiveReply(reply); err != nil {
 		log.Println("Error adding route", err)
 		return err
 	}
 
 	return nil
+}
+
+func (c *Client) configProxyArp() {
+	// Configure ProxyArp
+	for _, v := range c.config.IPv4Pool {
+		net, err := netip.ParsePrefix(v)
+
+		if err != nil {
+			log.Fatalf("Error parsing IPv4Pool, %s", err.Error())
+		}
+
+		// Very bad code :(
+		var last netip.Addr
+		for last = net.Addr(); net.Contains(last); last = last.Next() {
+		}
+		last = last.Prev()
+
+		first := net.Addr()
+		req := &arp.ProxyArpAddDel{IsAdd: true,
+			Proxy: arp.ProxyArp{
+				TableID: 0,
+				Low:     ip_types.IP4Address{first.As4()[0], first.As4()[1], first.As4()[2], first.As4()[3]},
+				Hi:      ip_types.IP4Address{last.As4()[0], last.As4()[1], last.As4()[2], last.As4()[3]},
+			}}
+
+		reply := &arp.ProxyArpAddDelReply{}
+
+		if err = c.ch.SendRequest(req).ReceiveReply(reply); err != nil {
+			log.Fatalf("Error setting proxy-arp in VPP, %s", err.Error())
+		}
+
+	}
+}
+
+func (c *Client) configCPEInterfaces() {
+	for _, v := range c.ifaces {
+		// UP State to iface
+		err := c.setInterfaceUp(v.VPPSrcIface)
+		if err != nil {
+			log.Fatalf("Error setting up interface, %s", err.Error())
+		}
+
+		// Set MTU
+		err = c.setInterfaceMTU(v.VPPSrcIface, v.MTU)
+		if err != nil {
+			log.Fatalf("Error setting MTU in interface, %s", err.Error())
+		}
+
+		if c.config.EnableProxyARP {
+			// Enable ProxyARP in interface
+			c.setInterfaceProxyARP(v.VPPSrcIface, true)
+		}
+	}
+}
+
+func (c *Client) configIPv4GwLoopback() {
+	// Create loopback iface
+	var err error
+	c.gwLoopSwIf, err = c.createLoopackIface()
+	if err != nil {
+		log.Fatalf("Error creating loopback interface, %s", err.Error())
+	}
+	// Iterate over Gw IPv4 and set it to created loopback
+	for _, v := range c.config.GatewayIfaceAddrs {
+		ipv4 := net.ParseIP(v)
+		if ipv4 == nil {
+			log.Fatalf("Gateway IPv4 %s is not possible to parse", v)
+		}
+
+		vppip := ip_types.Address{
+			Af: ip_types.ADDRESS_IP4,
+			Un: ip_types.AddressUnionIP4(ip_types.IP4Address{
+				ipv4[12], ipv4[13], ipv4[14], ipv4[15],
+			}),
+		}
+
+		// Set IPv4 to loopback
+		err = c.setInterfaceAddrIPv4(c.gwLoopSwIf, &vppip, 32)
+		if err != nil {
+			log.Fatalf("Error setting IPv4 in loopback interface, %s", err.Error())
+		}
+	}
 }

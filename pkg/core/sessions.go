@@ -1,6 +1,10 @@
 package core
 
-import "github.com/glutechnologies/glubng/pkg/vpp"
+import (
+	"net"
+
+	"github.com/glutechnologies/glubng/pkg/vpp"
+)
 
 type Sessions struct {
 	sessions map[string]*Session
@@ -9,7 +13,7 @@ type Sessions struct {
 
 type Session struct {
 	Iface int // VPP Iface
-	IPv4  string
+	IPv4  net.IP
 }
 
 func (s *Sessions) Init(vpp *vpp.Client) {
@@ -19,13 +23,14 @@ func (s *Sessions) Init(vpp *vpp.Client) {
 }
 
 func (s *Sessions) AddSession(ses *Session) {
-	s.sessions[ses.IPv4] = ses
+	s.sessions[ses.IPv4.String()] = ses
 	s.vpp.AddSession(ses.IPv4, uint32(ses.Iface))
 }
 
 func (s *Sessions) RemoveSession(ipv4 string) {
+	ses := s.sessions[ipv4]
+	s.vpp.RemoveSession(ses.IPv4, uint32(ses.Iface))
 	delete(s.sessions, ipv4)
-	s.vpp.RemoveSession()
 }
 
 func (s *Sessions) GetSession(ipv4 string) *Session {

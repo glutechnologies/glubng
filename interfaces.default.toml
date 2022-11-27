@@ -4,6 +4,7 @@ IsSubIf = false
 HasQinQ = false
 OuterVLAN = 0
 InnerVLAN = 0
+MTU = 1500
 
 [cpe2]
 VPPSrcIface = 2
@@ -11,3 +12,4 @@ IsSubIf = false
 HasQinQ = false
 OuterVLAN = 0
 InnerVLAN = 0
+MTU = 1500

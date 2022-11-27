@@ -136,8 +136,7 @@ func (c *Core) ProcessKeaMessages() {
 				}
 				ses := &Session{Iface: int(iface), IPv4: goip}
 				c.sessions.AddSession(ses)
-			case kea.CALLOUT_LEASE4_RELEASE:
-			case kea.CALLOUT_LEASE4_EXPIRE:
+			case kea.CALLOUT_LEASE4_RELEASE, kea.CALLOUT_LEASE4_EXPIRE:
 				// Remove Session when a lease expires
 				c.sessions.RemoveSession(msg.Lease.Address)
 			}

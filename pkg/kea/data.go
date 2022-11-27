@@ -58,8 +58,7 @@ func processDataFromConnection(k *KeaSocket, env *Envelope) {
 	var r KeaResult
 	r.Callout = env.Callout
 	switch env.Callout {
-	case CALLOUT_LEASE4_RENEW:
-	case CALLOUT_LEASE4_SELECT:
+	case CALLOUT_LEASE4_RENEW, CALLOUT_LEASE4_SELECT:
 		if err := json.Unmarshal(env.Lease, &r.Lease); err != nil {
 			log.Println(err)
 		}
@@ -71,8 +70,7 @@ func processDataFromConnection(k *KeaSocket, env *Envelope) {
 		}
 		// Send message to other goroutines
 		k.Message <- r
-	case CALLOUT_LEASE4_RELEASE:
-	case CALLOUT_LEASE4_DECLINE:
+	case CALLOUT_LEASE4_RELEASE, CALLOUT_LEASE4_DECLINE:
 		if err := json.Unmarshal(env.Lease, &r.Lease); err != nil {
 			log.Println(err)
 		}
@@ -81,9 +79,7 @@ func processDataFromConnection(k *KeaSocket, env *Envelope) {
 		}
 		// Send message to other goroutines
 		k.Message <- r
-
-	case CALLOUT_LEASE4_EXPIRE:
-	case CALLOUT_LEASE4_RECOVER:
+	case CALLOUT_LEASE4_EXPIRE, CALLOUT_LEASE4_RECOVER:
 		if err := json.Unmarshal(env.Lease, &r.Lease); err != nil {
 			log.Println(err)
 		}

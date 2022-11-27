@@ -149,6 +149,12 @@ func (c *Client) configCPEInterfaces() {
 			log.Fatalf("Error setting MTU in interface, %s", err.Error())
 		}
 
+		// Set Unnumbered to loopback
+		err = c.setInterfaceUnnumbered(v.VPPSrcIface, c.gwLoopSwIf)
+		if err != nil {
+			log.Fatalf("Error setting unnumbered interface, %s", err.Error())
+		}
+
 		if c.config.EnableProxyARP {
 			// Enable ProxyARP in interface
 			c.setInterfaceProxyARP(v.VPPSrcIface, true)
@@ -162,6 +168,11 @@ func (c *Client) configIPv4GwLoopback() {
 	c.gwLoopSwIf, err = c.createLoopackIface()
 	if err != nil {
 		log.Fatalf("Error creating loopback interface, %s", err.Error())
+	}
+	// Set loopback iface up
+	err = c.setInterfaceUp(c.gwLoopSwIf)
+	if err != nil {
+		log.Fatalf("Error setting up loopback interface, %s", err.Error())
 	}
 	// Iterate over Gw IPv4 and set it to created loopback
 	for _, v := range c.config.GatewayIfaceAddrs {

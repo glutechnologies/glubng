@@ -1,6 +1,7 @@
 package core
 
 import (
+	"log"
 	"net"
 
 	"github.com/glutechnologies/glubng/pkg/vpp"
@@ -29,6 +30,10 @@ func (s *Sessions) AddSession(ses *Session) {
 
 func (s *Sessions) RemoveSession(ipv4 string) {
 	ses := s.sessions[ipv4]
+	if ses == nil {
+		log.Printf("Session with IPv4 %s not exists", ipv4)
+		return
+	}
 	s.vpp.RemoveSession(ses.IPv4, uint32(ses.Iface))
 	delete(s.sessions, ipv4)
 }

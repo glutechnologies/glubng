@@ -73,6 +73,22 @@ func (c *Client) setInterfaceAddrIPv4(swIf int, ipv4 *ip_types.Address, len uint
 	return nil
 }
 
+func (c *Client) setInterfaceUnnumbered(swIf int, toSwIf int) error {
+	req := &interfaces.SwInterfaceSetUnnumbered{
+		SwIfIndex:           interface_types.InterfaceIndex(toSwIf),
+		UnnumberedSwIfIndex: interface_types.InterfaceIndex(swIf),
+		IsAdd:               true,
+	}
+
+	reply := &interfaces.SwInterfaceSetUnnumberedReply{}
+
+	if err := c.ch.SendRequest(req).ReceiveReply(reply); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) createLoopackIface() (int, error) {
 	req := &interfaces.CreateLoopback{}
 	reply := &interfaces.CreateLoopbackReply{}

@@ -15,11 +15,12 @@ type Session struct {
 func (s *Sessions) Init(vpp *vpp.Client) {
 	// Init vpp client
 	s.vpp = *vpp
+	s.sessions = make(map[string]*Session)
 }
 
 func (s *Sessions) AddSession(ses *Session) {
 	s.sessions[ses.IPv4] = ses
-	s.vpp.AddSession()
+	s.vpp.AddSession(ses.IPv4, uint32(ses.Iface))
 }
 
 func (s *Sessions) RemoveSession(ipv4 string) {

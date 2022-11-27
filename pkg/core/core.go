@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"sync"
 	"syscall"
 
@@ -120,7 +119,7 @@ func (c *Core) ProcessKeaMessages() {
 			switch msg.Callout {
 			case kea.CALLOUT_LEASE4_SELECT:
 				// New Lease selected
-				iface, err := strconv.ParseInt(msg.Query.Option82CID, 16, 0)
+				iface, err := ConvertCIDToInt(msg.Query.Option82CID)
 				if err != nil {
 					// Error parsing circuit-id
 					log.Printf("Error in ProcessKeaMessages, %s", err.Error())

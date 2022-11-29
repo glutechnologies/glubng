@@ -8,3 +8,5 @@ UplinkIfaceIPv4 = "192.168.20.2/24"
 GatewayIfaceAddrs = ["100.64.0.1"]
 IPv4Pool = ["100.64.0.0/24"]
 EnableProxyARP = true
+TapIfaceName = "dhcp"
+TapNetworkPrefix = "172.22.1.0/30"

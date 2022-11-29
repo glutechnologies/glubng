@@ -52,6 +52,7 @@ func (c *Client) Init(config *VPPConfig, ifacesFile string) {
 	c.configProxyArp()
 	c.configIPv4GwLoopback()
 	c.configCPEInterfaces()
+	c.configDHCPRelay()
 }
 
 func (c *Client) Close() {
@@ -132,6 +133,55 @@ func (c *Client) configProxyArp() {
 			log.Fatalf("Error setting proxy-arp in VPP, %s", err.Error())
 		}
 
+	}
+}
+
+func (c *Client) configDHCPRelay() {
+	net, err := netip.ParsePrefix(c.config.TapNetworkPrefix)
+	if err != nil {
+		log.Fatalf("Error parsing Tap IPv4Pool, %s", err.Error())
+	}
+
+	first := net.Addr().Next()
+	second := first.Next()
+
+	vppIPFirst := &ip_types.Address{
+		Af: ip_types.ADDRESS_IP4,
+		Un: ip_types.AddressUnionIP4(ip_types.IP4Address{
+			first.As4()[0], first.As4()[1], first.As4()[2], first.As4()[3],
+		}),
+	}
+
+	vppIPSecond := &ip_types.Address{
+		Af: ip_types.ADDRESS_IP4,
+		Un: ip_types.AddressUnionIP4(ip_types.IP4Address{
+			second.As4()[0], second.As4()[1], second.As4()[2], second.As4()[3],
+		}),
+	}
+
+	// Create Tap interface
+	var swIf int
+	swIf, err = c.createTapInterface(vppIPSecond, uint8(net.Bits()))
+	if err != nil {
+		log.Fatalf("Error creating Tap interface, %s", err.Error())
+	}
+
+	// Set Tap interface up
+	err = c.setInterfaceUp(swIf)
+	if err != nil {
+		log.Fatalf("Error setting Tap interface up, %s", err.Error())
+	}
+
+	// Add first IPv4 from net to early created Tap
+	err = c.setInterfaceAddrIPv4(swIf, vppIPFirst, uint8(net.Bits()))
+	if err != nil {
+		log.Fatalf("Error adding IPv4 to tap interface, %s", err.Error())
+	}
+
+	// Enable DHCP Proxy to External Server
+	err = c.setProxyDHCPv4(vppIPFirst, vppIPSecond)
+	if err != nil {
+		log.Fatalf("Error setting up DHCPv4 proxy, %s", err.Error())
 	}
 }
 

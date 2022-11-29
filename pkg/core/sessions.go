@@ -24,8 +24,12 @@ func (s *Sessions) Init(vpp *vpp.Client) {
 }
 
 func (s *Sessions) AddSession(ses *Session) {
-	s.sessions[ses.IPv4.String()] = ses
-	s.vpp.AddSession(ses.IPv4, uint32(ses.Iface))
+	// Check if session exists and it's equal
+	if s.sessions[ses.IPv4.String()] == nil ||
+		s.sessions[ses.IPv4.String()].Iface != ses.Iface {
+		s.sessions[ses.IPv4.String()] = ses
+		s.vpp.AddSession(ses.IPv4, uint32(ses.Iface))
+	}
 }
 
 func (s *Sessions) RemoveSession(ipv4 string) {

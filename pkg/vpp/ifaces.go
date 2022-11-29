@@ -5,6 +5,7 @@ import (
 	interfaces "go.fd.io/govpp/binapi/interface"
 	"go.fd.io/govpp/binapi/interface_types"
 	"go.fd.io/govpp/binapi/ip_types"
+	"go.fd.io/govpp/binapi/tapv2"
 )
 
 func (c *Client) setInterfaceUp(swIf int) error {
@@ -92,6 +93,24 @@ func (c *Client) setInterfaceUnnumbered(swIf int, toSwIf int) error {
 func (c *Client) createLoopackIface() (int, error) {
 	req := &interfaces.CreateLoopback{}
 	reply := &interfaces.CreateLoopbackReply{}
+
+	if err := c.ch.SendRequest(req).ReceiveReply(reply); err != nil {
+		return 0, err
+	}
+
+	return int(reply.SwIfIndex), nil
+}
+
+func (c *Client) createTapInterface(ipv4 *ip_types.Address, len uint8) (int, error) {
+	req := &tapv2.TapCreateV2{
+		ID:               0,
+		UseRandomMac:     true,
+		HostIfNameSet:    true,
+		HostIfName:       c.config.TapIfaceName,
+		HostIP4PrefixSet: true,
+		HostIP4Prefix:    ip_types.IP4AddressWithPrefix{Address: ipv4.Un.GetIP4(), Len: len},
+	}
+	reply := &tapv2.TapCreateV2Reply{}
 
 	if err := c.ch.SendRequest(req).ReceiveReply(reply); err != nil {
 		return 0, err

@@ -119,7 +119,7 @@ func (c *Core) ProcessKeaMessages() {
 			goto endLoop
 		case msg := <-c.kea.Message:
 			switch msg.Callout {
-			case kea.CALLOUT_LEASE4_SELECT:
+			case kea.CALLOUT_LEASE4_SELECT, kea.CALLOUT_LEASE4_RENEW:
 				// New Lease selected
 				iface, err := ConvertCIDToInt(msg.Query.Option82CID)
 				if err != nil {

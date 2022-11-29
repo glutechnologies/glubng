@@ -16,6 +16,8 @@ type VPPConfig struct {
 	GatewayIfaceAddrs []string
 	IPv4Pool          []string
 	EnableProxyARP    bool
+	TapIfaceName      string
+	TapNetworkPrefix  string
 }
 
 // VPP CPE Interfaces

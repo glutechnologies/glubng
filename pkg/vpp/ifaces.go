@@ -118,3 +118,38 @@ func (c *Client) createTapInterface(ipv4 *ip_types.Address, len uint8) (int, err
 
 	return int(reply.SwIfIndex), nil
 }
+
+func (c *Client) createVlanInterface(swIf int, id int, vlan int) (int, error) {
+	req := &interfaces.CreateSubif{
+		SwIfIndex:   interface_types.InterfaceIndex(swIf),
+		SubID:       uint32(id),
+		OuterVlanID: uint16(vlan),
+		SubIfFlags:  interface_types.SUB_IF_API_FLAG_EXACT_MATCH,
+	}
+
+	reply := &interfaces.CreateSubifReply{}
+
+	if err := c.ch.SendRequest(req).ReceiveReply(reply); err != nil {
+		return 0, err
+	}
+
+	return int(reply.SwIfIndex), nil
+}
+
+func (c *Client) createQinQInterface(swIf int, id int, outerVlan int, innerVlan int) (int, error) {
+	req := &interfaces.CreateSubif{
+		SwIfIndex:   interface_types.InterfaceIndex(swIf),
+		SubID:       uint32(id),
+		OuterVlanID: uint16(outerVlan),
+		InnerVlanID: uint16(innerVlan),
+		SubIfFlags:  interface_types.SUB_IF_API_FLAG_TWO_TAGS,
+	}
+
+	reply := &interfaces.CreateSubifReply{}
+
+	if err := c.ch.SendRequest(req).ReceiveReply(reply); err != nil {
+		return 0, err
+	}
+
+	return int(reply.SwIfIndex), nil
+}

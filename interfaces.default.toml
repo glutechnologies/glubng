@@ -5,6 +5,7 @@ HasQinQ = false
 OuterVLAN = 0
 InnerVLAN = 0
 MTU = 1500
+FlexId = "cpe1"
 
 [cpe2]
 VPPSrcIface = 2
@@ -13,3 +14,4 @@ HasQinQ = false
 OuterVLAN = 0
 InnerVLAN = 0
 MTU = 1500
+FlexId = "cpe2"

@@ -13,6 +13,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/glutechnologies/glubng/pkg/kea"
+	"github.com/glutechnologies/glubng/pkg/utils"
 	"github.com/glutechnologies/glubng/pkg/vpp"
 )
 
@@ -79,11 +80,11 @@ func (c *Core) Init() {
 	// Load initial configuration
 	c.LoadConfig()
 
-	// Init kea listener
-	c.kea.Init(c.config.Misc.SrcKeaSocket)
-
 	// Init VPP
 	c.vpp.Init(&c.config.Vpp, c.ifacesFile)
+
+	// Init kea listener
+	c.kea.Init(c.config.Misc.SrcKeaSocket, c.vpp.GetIfacesSwMap())
 
 	// Init Sessions
 	c.sessions.Init(&c.vpp)
@@ -119,9 +120,9 @@ func (c *Core) ProcessKeaMessages() {
 			goto endLoop
 		case msg := <-c.kea.Message:
 			switch msg.Callout {
-			case kea.CALLOUT_LEASE4_SELECT, kea.CALLOUT_LEASE4_RENEW:
+			case kea.CALLOUT_LEASE4_SELECT:
 				// New Lease selected
-				iface, err := ConvertCIDToInt(msg.Query.Option82CID)
+				iface, err := utils.ConvertCIDToInt(msg.Query.Option82CID)
 				if err != nil {
 					// Error parsing circuit-id
 					log.Printf("Error in ProcessKeaMessages, %s", err.Error())

@@ -124,7 +124,7 @@ func (c *Client) createVlanInterface(swIf int, id int, vlan int) (int, error) {
 		SwIfIndex:   interface_types.InterfaceIndex(swIf),
 		SubID:       uint32(id),
 		OuterVlanID: uint16(vlan),
-		SubIfFlags:  interface_types.SUB_IF_API_FLAG_EXACT_MATCH,
+		SubIfFlags:  interface_types.SUB_IF_API_FLAG_ONE_TAG | interface_types.SUB_IF_API_FLAG_EXACT_MATCH,
 	}
 
 	reply := &interfaces.CreateSubifReply{}
@@ -142,7 +142,7 @@ func (c *Client) createQinQInterface(swIf int, id int, outerVlan int, innerVlan 
 		SubID:       uint32(id),
 		OuterVlanID: uint16(outerVlan),
 		InnerVlanID: uint16(innerVlan),
-		SubIfFlags:  interface_types.SUB_IF_API_FLAG_TWO_TAGS,
+		SubIfFlags:  interface_types.SUB_IF_API_FLAG_TWO_TAGS | interface_types.SUB_IF_API_FLAG_EXACT_MATCH,
 	}
 
 	reply := &interfaces.CreateSubifReply{}

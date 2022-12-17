@@ -20,7 +20,7 @@ type VPPConfig struct {
 	TapNetworkPrefix  string
 }
 
-// VPP CPE Interfaces
+// CPE Interfaces
 type Iface struct {
 	VPPSrcIface int
 	IsSubIf     bool
@@ -28,9 +28,14 @@ type Iface struct {
 	OuterVLAN   int
 	InnerVLAN   int
 	MTU         uint32
+	SwIf        int
+	FlexId      string
 }
 
 func (c *Client) LoadIfacesConfig() {
+	// Init map pointer to Iface using SwIf as Index
+	c.ifacesSwIf = make(map[int]Iface)
+
 	body, err := os.ReadFile(c.ifacesFile)
 
 	if err != nil {

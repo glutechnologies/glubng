@@ -3,6 +3,9 @@ package kea
 import (
 	"encoding/json"
 	"log"
+	"net"
+
+	"github.com/glutechnologies/glubng/pkg/utils"
 )
 
 const CALLOUT_LEASE4_SELECT = 1
@@ -11,6 +14,7 @@ const CALLOUT_LEASE4_RELEASE = 3
 const CALLOUT_LEASE4_DECLINE = 4
 const CALLOUT_LEASE4_EXPIRE = 5
 const CALLOUT_LEASE4_RECOVER = 6
+const CALLOUT_PKT4_CIRCUIT_ID = 7
 
 type Envelope struct {
 	Callout int             `json:"callout"`
@@ -54,7 +58,34 @@ type KeaResult struct {
 	Lease   Lease
 }
 
-func processDataFromConnection(k *KeaSocket, env *Envelope) {
+type KeaResponse struct {
+	FlexId string `json:"flex-id"`
+}
+
+func sendResponse(k *KeaSocket, r *KeaResult, conn net.Conn) {
+	// Prepare Kea Result
+
+	if len(r.Query.Option82CID) > 0 {
+		ifSw, err := utils.ConvertCIDToInt(r.Query.Option82CID)
+
+		if err != nil {
+			log.Printf("Error parsing response Kea, %s", err.Error())
+			return
+		}
+
+		resp := &KeaResponse{FlexId: k.ifacesSwIf[int(ifSw)].FlexId}
+
+		e := json.NewEncoder(conn)
+		err = e.Encode(resp)
+
+		if err != nil {
+			log.Printf("Error sending response Kea, %s", err.Error())
+			return
+		}
+	}
+}
+
+func processDataFromConnection(k *KeaSocket, env *Envelope) *KeaResult {
 	var r KeaResult
 	r.Callout = env.Callout
 	switch env.Callout {
@@ -85,7 +116,13 @@ func processDataFromConnection(k *KeaSocket, env *Envelope) {
 		}
 		// Send message to other goroutines
 		k.Message <- r
+	case CALLOUT_PKT4_CIRCUIT_ID:
+		if err := json.Unmarshal(env.Query, &r.Query); err != nil {
+			log.Println(err)
+		}
 	default:
 		log.Printf("Process from connection, unknown message type: %q", env.Callout)
 	}
+
+	return &r
 }

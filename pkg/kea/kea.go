@@ -9,17 +9,20 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/glutechnologies/glubng/pkg/vpp"
 )
 
 type KeaSocket struct {
-	Filename string
-	Listener net.Listener
-	Message  chan KeaResult
-	stop     chan bool
-	wg       sync.WaitGroup
+	Filename   string
+	Listener   net.Listener
+	Message    chan KeaResult
+	stop       chan bool
+	wg         sync.WaitGroup
+	ifacesSwIf map[int]vpp.Iface
 }
 
-func handleConection(k *KeaSocket, conn net.Conn) {
+func (k *KeaSocket) handleConection(conn net.Conn) {
 	defer conn.Close()
 
 	conn.SetDeadline(time.Now().Add(200 * time.Millisecond))
@@ -35,10 +38,13 @@ func handleConection(k *KeaSocket, conn net.Conn) {
 		}
 	}
 	// Process data from Kea
-	processDataFromConnection(k, &env)
+	res := processDataFromConnection(k, &env)
+
+	// Send response
+	sendResponse(k, res, conn)
 }
 
-func runUnixSocketServer(k *KeaSocket) {
+func (k *KeaSocket) runUnixSocketServer() {
 	// https://eli.thegreenplace.net/2020/graceful-shutdown-of-a-tcp-server-in-go/
 	defer k.wg.Done()
 
@@ -58,24 +64,25 @@ func runUnixSocketServer(k *KeaSocket) {
 		} else {
 			k.wg.Add(1)
 			go func() {
-				handleConection(k, conn)
+				k.handleConection(conn)
 				k.wg.Done()
 			}()
 		}
 	}
 }
 
-func (k *KeaSocket) Init(Filename string) {
-	k.Filename = Filename
+func (k *KeaSocket) Init(filename string, ifaces map[int]vpp.Iface) {
+	k.Filename = filename
 	k.stop = make(chan bool)
 	k.Message = make(chan KeaResult)
+	k.ifacesSwIf = ifaces
 
-	if err := os.RemoveAll(Filename); err != nil {
+	if err := os.RemoveAll(filename); err != nil {
 		log.Fatal(err)
 	}
 
 	var err error
-	k.Listener, err = net.Listen("unix", Filename)
+	k.Listener, err = net.Listen("unix", filename)
 
 	if err != nil {
 		log.Fatal("listen error:", err)
@@ -83,7 +90,7 @@ func (k *KeaSocket) Init(Filename string) {
 
 	// Add one level to WaitGroup
 	k.wg.Add(1)
-	go runUnixSocketServer(k)
+	go k.runUnixSocketServer()
 }
 
 func (k *KeaSocket) Close() {

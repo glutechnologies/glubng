@@ -17,6 +17,7 @@ import (
 type Client struct {
 	config     VPPConfig
 	ifaces     map[string]Iface
+	ifacesSwIf map[int]Iface
 	ifacesFile string
 	conn       *core.Connection
 	ch         api.Channel
@@ -84,6 +85,10 @@ func (c *Client) RemoveSession(ipv4 net.IP, iface uint32) {
 	}
 
 	c.addDelRouteToVPP(&vppip, iface, false)
+}
+
+func (c *Client) GetIfacesSwMap() map[int]Iface {
+	return c.ifacesSwIf
 }
 
 func (c *Client) addDelRouteToVPP(ipv4 *ip_types.Address, iface uint32, isAdd bool) error {
@@ -186,7 +191,7 @@ func (c *Client) configDHCPRelay() {
 }
 
 func (c *Client) configCPEInterfaces() {
-	for _, v := range c.ifaces {
+	for k, v := range c.ifaces {
 		// UP State to iface
 		err := c.setInterfaceUp(v.VPPSrcIface)
 		if err != nil {
@@ -234,6 +239,11 @@ func (c *Client) configCPEInterfaces() {
 			// Enable ProxyARP in interface
 			c.setInterfaceProxyARP(swIf, true)
 		}
+
+		// Store SwIf
+		v.SwIf = swIf
+		// Pointer using SwIf
+		c.ifacesSwIf[swIf] = c.ifaces[k]
 	}
 }
 
